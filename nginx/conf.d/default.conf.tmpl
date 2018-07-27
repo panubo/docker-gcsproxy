@@ -1,0 +1,195 @@
+{{- $proxy := ds "pnb_proxy" -}}
+{{- $default_cache_control := "public, max-age=60" -}}
+
+# Setup nginx cache, we use nginx cache for some requests not cached by GCLB CDN
+proxy_cache_path /var/tmp/nginx levels=1:2 keys_zone=cache:10m max_size=2g
+  inactive=60m use_temp_path=off;
+# Since we don't cache much only show the cache header when we are caching
+map $upstream_cache_status $x_cache_status {
+  default "$upstream_cache_status";
+  "MISS" "";
+}
+add_header X-Cache-Status $x_cache_status always;
+
+# Turn server tokens off for security
+server_tokens off;
+
+# Add $host to the combined log format
+log_format combined_host '$remote_addr - $remote_user [$time_local] '
+                    '"$request" $status $body_bytes_sent '
+                    '"$http_referer" "$http_user_agent" "$host"';
+
+# Use the client ip from X-Forwarded-For
+real_ip_header X-Forwarded-For;
+real_ip_recursive on;
+# Trust the X-Forwarded-For header from GCLB
+set_real_ip_from 130.211.0.0/22;
+set_real_ip_from 35.191.0.0/16;
+# Also trust the X-Forwarded-For header from the project GCLB IP
+{{- if (has $proxy "gclb_ips") }}
+{{- range $it := $proxy.gclb_ips }}
+set_real_ip_from {{ $it }};
+{{- end }}
+{{- end }}
+
+# Set HSTS header if X-Forwarded-Proto is https
+map $http_x_forwarded_proto $hsts {
+  default "";
+  https "max-age=31536000; includeSubDomains";
+}
+add_header Strict-Transport-Security $hsts always;
+
+# Set some general security headers
+# Be careful with add_header, add_header directives are only inherited from the previous level if there are not add_header directives on the current level
+add_header Content-Security-Policy "default-src 'self'; frame-ancestors 'self'";
+add_header Referer-Policy "origin-when-cross-origin";
+add_header X-XSS-Protection "1; mode=block";
+add_header X-Content-Type-Options "nosniff";
+add_header X-Frame-Options SAMEORIGIN;
+
+# If the upstream doesn't define a cache-control set the default
+map $upstream_http_cache_control $default_cache_control {
+  default "$upstream_http_cache_control";
+  "" "
+{{- if (has $proxy "cache_control") -}}
+  {{- if (has $proxy.cache_control "default") -}}
+    {{- $proxy.cache_control.default -}}
+  {{- else -}}
+    {{- $default_cache_control -}}
+  {{- end -}}
+{{- else -}}
+  {{- $default_cache_control -}}
+{{- end -}}
+";
+}
+
+# Provide cache-control overrides based on $uri ($uri in the internal URI not the original request uri which would be $request_uri)
+map "$backend_bucket:$uri" $cache_control {
+  default "$default_cache_control";
+  ":/healthz" "no-store, no-cache, max-age=0";
+  "~^[^/]*:/_pnb_proxy/" "no-store, no-cache, max-age=0";
+
+  # Custom cache-control overrides
+{{- if (has $proxy "cache_control") }}
+  {{- if (has $proxy.cache_control "override") }}
+    {{- range $it := $proxy.cache_control.override }}
+  "{{ $it.key }}" "{{ $it.value }}";
+    {{- end }}
+  {{- end }}
+{{- end }}
+}
+
+# Hide the cache-control header from the upstream and set the cache-control header we have determined here
+proxy_hide_header Cache-Control; 
+proxy_ignore_headers Cache-Control;
+add_header Cache-Control $cache_control;
+
+# Turn on gzip
+gzip on;
+gzip_disable "msie6";
+
+# Add vary accept-encoding header so caching compressed responses works
+gzip_vary on;
+# Allow gzip of proxy requests
+gzip_proxied any;
+# gzip_comp_level 6;
+# gzip_buffers 16 8k;
+# gzip_http_version 1.1;
+# Add some additional types for compression
+gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+
+# Default server, used when no server_name matches
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    # Access log using the combined_hosts format
+    access_log /var/log/nginx/access.log combined_host;
+    server_name _;
+
+    include common-locations.conf;
+
+    # Return a 404 response, string and content-type text/plain
+    location / {
+      default_type text/plain;
+      return 404 "404 - default backend";
+    }
+
+    # Set $backend_bucket when using the default server
+    set $backend_bucket "";
+}
+{{- if (has $proxy "redirect") }}
+  {{- range $it := $proxy.redirect }}
+
+# Redirect server
+server {
+    listen 80;
+    listen [::]:80;
+
+    # Access log using the combined_hosts format
+    access_log /var/log/nginx/access.log combined_host;
+
+    # List of domains to redirect, use .domain.tld for all subdomains including domain.tld or *.domain.tld for all subdomains excluding domain.tld
+    server_name {{ join $it.names " " }};
+
+    include common-locations.conf;
+    # Return 301 Moved Permanently, hardcoding the prefered scheme
+    location / {
+      return 301 {{ $it.destination }}$request_uri;
+    }
+
+    # Set $backend_bucket when using the redirect server
+    set $backend_bucket "";
+}
+  {{- end }}
+{{- end }}
+
+{{- if (has $proxy "server") }}
+  {{- range $it := $proxy.server }}
+
+# Bucket backend server
+server {
+    set $backend_bucket "{{ $it.bucket }}";
+    listen 80;
+    listen [::]:80;
+
+    # Access log using the combined_hosts format
+    access_log /var/log/nginx/access.log combined_host;
+
+    root /var/www/html;
+
+    # Add index.php to the list if you are using PHP
+    index index.html index.htm index.nginx-debian.html;
+
+    server_name {{ join $it.names " " }};
+
+    include common-locations.conf;
+
+    location / {
+      # If the X-Forwarded-Proto is not https return a 301 redirect to the https version
+      if ($http_x_forwarded_proto != "https") {
+        return 301 https://$host$request_uri;
+      }
+
+      # Add index.html if uri ends in /
+      rewrite ^(.*)/$ $1/index.html last;
+
+      # Pass to gcsproxy with bucket name
+      proxy_pass http://127.0.0.1:8080/{{ $it.bucket }}/;
+
+      # Intercept errors and redirect to 404.html
+      proxy_intercept_errors on;
+      error_page 404 /404.html;
+
+      # Add cache for 404s, GCLB CDN does not cache 404 responses
+      proxy_cache cache;
+      proxy_cache_valid 404 60s;
+      # We also need to cache the 404.html page to reduce bucket requests
+      location = /404.html {
+        proxy_pass http://127.0.0.1:8080/{{ $it.bucket }}/404.html;
+        proxy_cache_valid 60s;
+      }
+    }
+}
+  {{- end }}
+{{- end }}

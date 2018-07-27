@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+
+set -e
+
+{ cd /etc/nginx/conf.d; \
+  curl -fSs -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/pnb-proxy | \
+  gomplate -d 'pnb_proxy=stdin:?type=application/json' -f default.conf.tmpl > default.conf; \
+}
+
+cat /etc/nginx/conf.d/default.conf
+
+exec nginx -g "daemon off;"
