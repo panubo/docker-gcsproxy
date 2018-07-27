@@ -2,11 +2,22 @@
 
 set -e
 
-{ cd /etc/nginx/conf.d; \
-  curl -fSs -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/pnb-proxy | \
-  gomplate -d 'pnb_proxy=stdin:?type=application/json' -f default.conf.tmpl > default.conf; \
-}
+TEMPLATES=(
+  "/etc/nginx/conf.d/default.conf.tmpl"
+  "/etc/nginx/common-locations.conf.tmpl"
+)
 
-cat /etc/nginx/conf.d/default.conf
+#{ cd /etc/nginx/conf.d; \
+#  curl -fSs -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/pnb-proxy | \
+#  gomplate -d 'pnb_proxy=stdin:?type=application/json' -f default.conf.tmpl > default.conf; \
+#}
+
+curl -fSs -H "Metadata-Flavor: Google" http://metadata.google.internal/computeMetadata/v1/instance/attributes/pnb-proxy -o /pnb-proxy.json
+
+for item in "${TEMPLATES[@]}"; do
+  gomplate -d pnb_proxy=/pnb-proxy.json < "${item}" > "${item/%\.tmpl/}"
+  echo "==> ${item/%\.tmpl/} <=="
+  cat "${item/%\.tmpl/}"
+done
 
 exec nginx -g "daemon off;"

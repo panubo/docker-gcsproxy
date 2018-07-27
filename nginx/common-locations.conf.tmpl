@@ -1,3 +1,4 @@
+{{- $proxy := ds "pnb_proxy" -}}
 # Common locations used by all servers
 # Deny any .ht or .git files
 location ~ /\.ht {
@@ -19,8 +20,23 @@ location /_pnb_proxy/ip {
   default_type text/plain;
   return 200 $http_x_forwarded_for;
 }
+
 # Returns the client proto for debugging
 location /_pnb_proxy/proto {
   default_type text/plain;
   return 200 $http_x_forwarded_proto;
 }
+
+{{- if (has $proxy "acme") }}
+
+# ACME
+# /.well-known/acme-challenge/
+location /.well-known/acme-challenge/ {
+  # Pass to gcsproxy with bucket name
+  proxy_pass http://127.0.0.1:8080/{{ $proxy.acme.bucket }}/.pnb-proxy/.well-known/acme-challenge/;
+
+  # Intercept errors
+  proxy_intercept_errors on;
+}
+
+{{- end }}
