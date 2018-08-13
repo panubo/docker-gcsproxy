@@ -41,7 +41,15 @@ add_header Strict-Transport-Security $hsts always;
 
 # Set some general security headers
 # Be careful with add_header, add_header directives are only inherited from the previous level if there are not add_header directives on the current level
+{{ if (has $proxy "csp") }}
+  {{- if (has $proxy.csp "default") }}
+add_header Content-Secutity-Policy "{{ $proxy.csp.default }}";
+  {{- else }}
 add_header Content-Security-Policy "default-src 'self'; frame-ancestors 'self'";
+  {{- end }}
+{{- else }}
+add_header Content-Security-Policy "default-src 'self'; frame-ancestors 'self'";
+{{- end }}
 add_header Referer-Policy "origin-when-cross-origin";
 add_header X-XSS-Protection "1; mode=block";
 add_header X-Content-Type-Options "nosniff";
