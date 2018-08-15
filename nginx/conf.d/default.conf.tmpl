@@ -179,8 +179,23 @@ server {
         return 301 https://$host$request_uri;
       }
 
+{{- if (has $it "require_iap") }}
+  {{- if $it.require_iap }}
+
+      # Return 403 forbidden if x-goog-iap-jwt-assertion header is not set
+      # NOTE: this does not check the headers signature
+      if ($http_x_goog_iap_jwt_assertion = "") {
+        return 403;
+      }
+  {{- end }}
+{{- end }}
+
       # Add index.html if uri ends in /
       rewrite ^(.*)/$ $1/index.html last;
+
+      # Setup nginx cache
+      proxy_cache cache;
+      proxy_cache_valid 200 301 302 3600s;
 
       # Pass to gcsproxy with bucket name
       proxy_pass http://127.0.0.1:8080/{{ $it.bucket }}/;
@@ -190,7 +205,6 @@ server {
       error_page 404 /404.html;
 
       # Add cache for 404s, GCLB CDN does not cache 404 responses
-      proxy_cache cache;
       proxy_cache_valid 404 60s;
       # We also need to cache the 404.html page to reduce bucket requests
       location = /404.html {

@@ -2,6 +2,31 @@
 
 set -e
 
+# wait_tcp from https://github.com/panubo/bash-container/
+wait_tcp() {
+  # Wait for tcp service to be available
+  command -v timeout >/dev/null 2>&1 || { error "This function requires timeout to be installed."; return 1; }
+  local host="${1:-'localhost'}"
+  local port="${2:-'80'}"
+  local retries="${3:-30}"
+  local tcp_timeout="${4:-2}"
+  echo -n "Connecting to ${host}:${port}"
+  for (( i=0;; i++ )); do
+    if [[ ${i} -eq "${retries}" ]]; then
+      echo " timeout!"
+      return 99
+    fi
+    sleep 1
+    timeout "${tcp_timeout}" bash -c "(exec 3<>/dev/tcp/${host}/${port}) &>/dev/null" && break
+    echo -n "."
+  done
+  echo " connected."
+  exec 3>&-
+  exec 3<&-
+}
+
+wait_tcp metadata.google.internal 80 5 5
+
 TEMPLATES=(
   "/etc/nginx/conf.d/default.conf.tmpl"
   "/etc/nginx/common-locations.conf.tmpl"
