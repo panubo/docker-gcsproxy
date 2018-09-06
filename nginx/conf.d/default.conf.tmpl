@@ -74,7 +74,7 @@ map $upstream_http_cache_control $default_cache_control {
 # Provide cache-control overrides based on $uri ($uri in the internal URI not the original request uri which would be $request_uri)
 map "$backend_bucket:$uri" $cache_control {
   default "$default_cache_control";
-  ":/healthz" "no-store, no-cache, max-age=0";
+  "~^[^/]*:/healthz" "no-store, no-cache, max-age=0";
   "~^[^/]*:/_pnb_proxy/" "no-store, no-cache, max-age=0";
 
   # Custom cache-control overrides
@@ -91,6 +91,37 @@ map "$backend_bucket:$uri" $cache_control {
 proxy_hide_header Cache-Control; 
 proxy_ignore_headers Cache-Control;
 add_header Cache-Control $cache_control;
+
+# If the upstream doesn't define a access-control-allow-origin header set the default
+map $upstream_http_access_control_allow_origin $default_allow_origin {
+  default "$upstream_http_access_control_allow_origin";
+  "" "
+{{- if (has $proxy "cors") -}}
+  {{- if (has $proxy.cors "default") -}}
+    {{- $proxy.cors.default -}}
+  {{- end -}}
+{{- end -}}
+";
+}
+
+# Provide access-control-allow-origin header
+map "$backend_bucket:$uri" $allow_origin {
+  default "$default_allow_origin";
+  "~^[^/]*:/healthz" "";
+  "~^[^/]*:/_pnb_proxy/" "";
+
+  # Custom access-control-allow-origin overrides
+{{- if (has $proxy "cors") }}
+  {{- if (has $proxy.cors "override") }}
+    {{- range $it := $proxy.cors.override }}
+  "{{ $it.key }}" "{{ $it.value }}";
+    {{- end }}
+  {{- end }}
+{{- end }}
+}
+
+proxy_hide_header Access-Control-Allow-Origin;
+add_header Access-Control-Allow-Origin $allow_origin;
 
 # Turn on gzip
 gzip on;
@@ -178,17 +209,6 @@ server {
       if ($http_x_forwarded_proto != "https") {
         return 301 https://$host$request_uri;
       }
-
-{{- if (has $it "require_iap") }}
-  {{- if $it.require_iap }}
-
-      # Return 403 forbidden if x-goog-iap-jwt-assertion header is not set
-      # NOTE: this does not check the headers signature
-      if ($http_x_goog_iap_jwt_assertion = "") {
-        return 403;
-      }
-  {{- end }}
-{{- end }}
 
       # Add index.html if uri ends in /
       rewrite ^(.*)/$ $1/index.html last;
