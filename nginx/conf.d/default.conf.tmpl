@@ -215,7 +215,7 @@ server {
 
       # Setup nginx cache
       proxy_cache cache;
-      proxy_cache_valid 200 301 302 3600s;
+      proxy_cache_valid 200 301 302 60s;
 
       # Pass to gcsproxy with bucket name
       proxy_pass http://127.0.0.1:8080/{{ $it.bucket }}/;
