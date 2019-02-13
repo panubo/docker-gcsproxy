@@ -189,9 +189,9 @@ server {
 # Bucket backend server
 server {
     set $backend_bucket "{{ $it.bucket }}";
-    {{- if (has $it "server_port") }}
-    listen {{ $it.server_port }};
-    listen [::]:{{ $it.server_port }};
+    {{- if (has $it "port") }}
+    listen {{ $it.port }};
+    listen [::]:{{ $it.port }};
     {{- else }}
     listen 80;
     listen [::]:80;
