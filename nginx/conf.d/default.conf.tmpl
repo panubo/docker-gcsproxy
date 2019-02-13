@@ -189,8 +189,13 @@ server {
 # Bucket backend server
 server {
     set $backend_bucket "{{ $it.bucket }}";
+    {{- if (has $it "server_port") }}
+    listen {{ $it.server_port }};
+    listen [::]:{{ $it.server_port }};
+    {{- else }}
     listen 80;
     listen [::]:80;
+    {{- end }}
 
     # Access log using the combined_hosts format
     access_log /var/log/nginx/access.log combined_host;
