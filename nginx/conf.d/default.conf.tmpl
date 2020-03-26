@@ -135,7 +135,13 @@ gzip_proxied any;
 # gzip_buffers 16 8k;
 # gzip_http_version 1.1;
 # Add some additional types for compression
-gzip_types text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+gzip_types text/plain text/css text/xml application/json
+  text/javascript application/x-javascript application/javascript
+  application/xml application/xhtml+xml application/xml+rss
+  application/rss+xml image/svg+xml image/x-icon image/bmp application/x-font
+  application/x-font-opentype application/x-font-otf
+  application/x-font-truetype application/x-font-ttf font/opentype font/otf
+  font/ttf application/vnd.ms-fontobject;
 
 # Default server, used when no server_name matches
 server {

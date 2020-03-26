@@ -1,4 +1,4 @@
-FROM docker.io/nginx:latest
+FROM docker.io/nginx:1.16
 
 # Install Panubo bash container
 RUN set -x \
