@@ -1,5 +1,6 @@
 {{- $proxy := ds "pnb_proxy" -}}
 {{- $default_cache_control := "public, max-age=60" -}}
+{{- $default_content_security_policy := "default-src 'self'; frame-ancestors 'self'" -}}
 
 # Setup nginx cache, we use nginx cache for some requests not cached by GCLB CDN
 proxy_cache_path /var/tmp/nginx levels=1:2 keys_zone=cache:10m max_size=2g
@@ -41,19 +42,35 @@ add_header Strict-Transport-Security $hsts always;
 
 # Set some general security headers
 # Be careful with add_header, add_header directives are only inherited from the previous level if there are not add_header directives on the current level
+map "$host:$uri" $content_security_policy {
 {{ if (has $proxy "csp") }}
   {{- if (has $proxy.csp "default") }}
-add_header Content-Secutity-Policy "{{ $proxy.csp.default }}";
+  default "{{ $proxy.csp.default }}";
   {{- else }}
-add_header Content-Security-Policy "default-src 'self'; frame-ancestors 'self'";
+  default "{{ $default_content_security_policy }}";
   {{- end }}
 {{- else }}
-add_header Content-Security-Policy "default-src 'self'; frame-ancestors 'self'";
+  default "{{ $default_content_security_policy }}";
 {{- end }}
+
+  # Custom Content-Secutity-Policy overrides
+{{- if (has $proxy "csp") }}
+  {{- if (has $proxy.csp "override") }}
+    {{- range $it := $proxy.csp.override }}
+  "{{ $it.key }}" "{{ $it.value }}";
+    {{- end }}
+  {{- end }}
+{{- end }}
+}
+
+add_header Content-Secutity-Policy $content_security_policy;
+
 add_header Referer-Policy "origin-when-cross-origin";
 add_header X-XSS-Protection "1; mode=block";
 add_header X-Content-Type-Options "nosniff";
-add_header X-Frame-Options SAMEORIGIN;
+
+# X-Frame-Options SAMEORIGIN has be obsoleted by Content-Security-Policy with frame-ancestors
+# add_header X-Frame-Options SAMEORIGIN;
 
 # If the upstream doesn't define a cache-control set the default
 map $upstream_http_cache_control $default_cache_control {
