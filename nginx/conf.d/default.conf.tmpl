@@ -65,7 +65,9 @@ map "$host:$uri" $content_security_policy {
 
 add_header Content-Security-Policy $content_security_policy;
 
-add_header Referer-Policy "origin-when-cross-origin";
+# TODO: add Feature-Policy header
+add_header Referer-Policy "strict-origin-when-cross-origin";
+add_header Referrer-Policy "strict-origin-when-cross-origin";
 add_header X-XSS-Protection "1; mode=block";
 add_header X-Content-Type-Options "nosniff";
 
