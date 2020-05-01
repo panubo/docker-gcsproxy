@@ -53,7 +53,7 @@ map "$host:$uri" $content_security_policy {
   default "{{ $default_content_security_policy }}";
 {{- end }}
 
-  # Custom Content-Secutity-Policy overrides
+  # Custom Content-Security-Policy overrides
 {{- if (has $proxy "csp") }}
   {{- if (has $proxy.csp "override") }}
     {{- range $it := $proxy.csp.override }}
@@ -63,7 +63,7 @@ map "$host:$uri" $content_security_policy {
 {{- end }}
 }
 
-add_header Content-Secutity-Policy $content_security_policy;
+add_header Content-Security-Policy $content_security_policy;
 
 add_header Referer-Policy "origin-when-cross-origin";
 add_header X-XSS-Protection "1; mode=block";
