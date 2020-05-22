@@ -1,6 +1,7 @@
 {{- $proxy := ds "pnb_proxy" -}}
 {{- $default_cache_control := "public, max-age=60" -}}
 {{- $default_content_security_policy := "default-src 'self'; frame-ancestors 'self'" -}}
+{{- $default_content_security_policy_report_only := "" -}}
 
 # Setup nginx cache, we use nginx cache for some requests not cached by GCLB CDN
 proxy_cache_path /var/tmp/nginx levels=1:2 keys_zone=cache:10m max_size=2g
@@ -42,6 +43,8 @@ add_header Strict-Transport-Security $hsts always;
 
 # Set some general security headers
 # Be careful with add_header, add_header directives are only inherited from the previous level if there are not add_header directives on the current level
+
+# Content-Security-Policy
 map "$host:$uri" $content_security_policy {
 {{ if (has $proxy "csp") }}
   {{- if (has $proxy.csp "default") }}
@@ -64,6 +67,30 @@ map "$host:$uri" $content_security_policy {
 }
 
 add_header Content-Security-Policy $content_security_policy;
+
+# Content-Security-Policy-Report-Only
+map "$host:$uri" $content_security_policy_report_only {
+{{ if (has $proxy "cspro") }}
+  {{- if (has $proxy.cspro "default") }}
+  default "{{ $proxy.cspro.default }}";
+  {{- else }}
+  default "{{ $default_content_security_policy_report_only }}";
+  {{- end }}
+{{- else }}
+  default "{{ $default_content_security_policy_report_only }}";
+{{- end }}
+
+  # Custom Content-Security-Policy-Report-Only overrides
+{{- if (has $proxy "cspro") }}
+  {{- if (has $proxy.cspro "override") }}
+    {{- range $it := $proxy.cspro.override }}
+  "{{ $it.key }}" "{{ $it.value }}";
+    {{- end }}
+  {{- end }}
+{{- end }}
+}
+
+add_header Content-Security-Policy-Report-Only $content_security_policy_report_only;
 
 # TODO: add Feature-Policy header
 add_header Referer-Policy "strict-origin-when-cross-origin";
