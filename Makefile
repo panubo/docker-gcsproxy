@@ -12,3 +12,6 @@ push:
 run:
 	-docker rm -f gcsproxy
 	docker run -d --name gcsproxy -p 80:80 panubo/gcsproxy
+
+_ci_test:
+	true
