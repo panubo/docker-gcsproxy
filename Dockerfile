@@ -23,8 +23,8 @@ RUN set -x \
 # Install gomplate
 RUN set -x \
   && GOMPLATE_VERSION=v3.11.5 \
-  && GOMPLATE_CHECKSUM_X86_64=eb225db8a40758f67a2af0a1f5e2fd78354fdac5e8be095d536bdebcc7a5a432 \
-  && GOMPLATE_CHECKSUM_AARCH64=7b45a64083a1e71b76881541db1554404a391cc1d6942a2a25f26614b069fcaf \
+  && GOMPLATE_CHECKSUM_X86_64=16f6a01a0ff22cae1302980c42ce4f98ca20f8c55443ce5a8e62e37fc23487b3 \
+  && GOMPLATE_CHECKSUM_AARCH64=fd980f9d233902e50f3f03f10ea65f36a2705385358a87aa18b19fb7cdf54c1d \
   && if [ "$(uname -m)" = "x86_64" ] ; then \
         GOMPLATE_CHECKSUM="${GOMPLATE_CHECKSUM_X86_64}"; \
         GOMPLATE_ARCH="amd64"; \
@@ -32,10 +32,10 @@ RUN set -x \
         GOMPLATE_CHECKSUM="${GOMPLATE_CHECKSUM_AARCH64}"; \
         GOMPLATE_ARCH="arm64"; \
       fi \
-  && curl -sSf -o /tmp/gomplate_linux-${GOMPLATE_ARCH}-slim -L https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_linux-${GOMPLATE_ARCH}-slim \
-  && echo "${GOMPLATE_CHECKSUM}  gomplate_linux-${GOMPLATE_ARCH}-slim" > /tmp/SHA256SUM \
-  && ( cd /tmp; sha256sum -c SHA256SUM || ( echo "Expected $(sha256sum gomplate_linux-${GOMPLATE_ARCH}-slim)"; exit 1; )) \
-  && install -m 0755 /tmp/gomplate_linux-${GOMPLATE_ARCH}-slim /usr/local/bin/gomplate \
+  && curl -sSf -o /tmp/gomplate_linux-${GOMPLATE_ARCH} -L https://github.com/hairyhenderson/gomplate/releases/download/${GOMPLATE_VERSION}/gomplate_linux-${GOMPLATE_ARCH} \
+  && echo "${GOMPLATE_CHECKSUM}  gomplate_linux-${GOMPLATE_ARCH}" > /tmp/SHA256SUM \
+  && ( cd /tmp; sha256sum -c SHA256SUM || ( echo "Expected $(sha256sum gomplate_linux-${GOMPLATE_ARCH})"; exit 1; )) \
+  && install -m 0755 /tmp/gomplate_linux-${GOMPLATE_ARCH} /usr/local/bin/gomplate \
   && rm -f /tmp/* \
   ;
 
